@@ -37,10 +37,10 @@ def estimate_rot(data_num=1):
 	imu_vals = imu_raw['vals']
 	imu_ts = imu_raw['ts'].T
 	imu = imu_vals
-	vicon_raw = sio.loadmat('vicon/viconRot'+str(data_num)+'.mat')
-	vicon_rot = vicon_raw['rots']
-	vicon_ts = vicon_raw['ts'].T
-	vicon = vicon_rot
+	# vicon_raw = sio.loadmat('vicon/viconRot'+str(data_num)+'.mat')
+	# vicon_rot = vicon_raw['rots']
+	# vicon_ts = vicon_raw['ts'].T
+	# vicon = vicon_rot
 	ax = -1*imu[0,:]
 	ay = -1*imu[1,:]
 	az = imu[2,:]
@@ -50,19 +50,19 @@ def estimate_rot(data_num=1):
 	wz = imu[3,:]
 	omega = np.array([wx, wy, wz]).T
 	scale_acc = 3300/1023/330.0
-	bias_acc = np.mean(acc[:100], axis = 0) - (np.array([0,0,1])/scale_acc)
+	bias_acc = np.mean(acc[:1000], axis = 0) - (np.array([0,0,1])/scale_acc)
 	acc = (acc-bias_acc)*scale_acc
 	scale_omega = 3300/1023/3.33
-	bias_omega = np.mean(omega[:100], axis = 0)
+	bias_omega = np.mean(omega[:1000], axis = 0)
 	omega = (omega-bias_omega)*scale_omega*(np.pi/180)
-	vicon_rolls = np.zeros((vicon.shape[2],1))
-	vicon_pitches = np.zeros((vicon.shape[2],1))
-	vicon_yaws = np.zeros((vicon.shape[2],1))
-	for i in range(vicon.shape[2]):
-		vicon_rolls[i], vicon_pitches[i], vicon_yaws[i] = rottoeuler(vicon[:,:,i])
+	# vicon_rolls = np.zeros((vicon.shape[2],1))
+	# vicon_pitches = np.zeros((vicon.shape[2],1))
+	# vicon_yaws = np.zeros((vicon.shape[2],1))
+	# for i in range(vicon.shape[2]):
+	# 	vicon_rolls[i], vicon_pitches[i], vicon_yaws[i] = rottoeuler(vicon[:,:,i])
 	previous_state_x = np.array([1,0,0,0])
-	P = 0.1*np.eye(3,3)
-	Q = 0.00001*np.eye(3,3)
+	P = np.eye(3,3)
+	Q = 0.0001*np.eye(3,3)
 	R = 0.01*np.eye(3,3)
 	predictions = np.zeros((3,3,ax.shape[0]))
 	#start = timeit.default_timer()
