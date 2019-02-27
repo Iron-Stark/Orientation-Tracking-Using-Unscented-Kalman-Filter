@@ -1,5 +1,4 @@
 import numpy as np
-import warnings
 
 def add_quaternion(q1, q2):
     return (q1+q2)
@@ -43,24 +42,16 @@ def inverse_quaternion(q1):
     return ans/np.linalg.norm(q1)
 
 def quattovec(q1):
-    warnings.filterwarnings("error")
     if q1[0]==1:
         return np.zeros((3,))
     ans = np.zeros((3,))
-    try:
-        theta = 2*np.arccos(q1[0])
-    except:
-        theta = 1e-5
+    theta = 2*np.arccos(q1[0])
     ans = (theta/np.sin(theta/2))*q1[1:]
     return ans
 
 def rottheta(q1, q2):
     q12 = normalize_quaternion(multiply_quaternion(q2, inverse_quaternion(q1)))
-    try:
-        theta = 2*np.arccos(q12[0])
-    except:
-        theta = 1e-5
-    q12 = q12
+    theta = 2*np.arccos(q12[0])
     return q12, theta
 
 def vectoquat(v):
