@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 
 def add_quaternion(q1, q2):
     return (q1+q2)
@@ -42,6 +43,7 @@ def inverse_quaternion(q1):
     return ans/np.linalg.norm(q1)
 
 def quattovec(q1):
+    #warnings.filterwarnings("error")
     if q1[0]==1:
         return np.zeros((3,))
     ans = np.zeros((3,))

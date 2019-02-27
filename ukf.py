@@ -4,8 +4,8 @@ import Quaternion
 
 def sigma_points(P,Q):
     n = P.shape[0]
-    s = np.linalg.cholesky(Q)
-    s = s*np.sqrt(0.1*n)
+    s = np.linalg.cholesky(P+Q)
+    s = s*np.sqrt(2*n)
     W = np.hstack((s,-s))
     return W
 
@@ -43,13 +43,14 @@ def meanY(Y, previous_state_x):
         for i in range(7):
             prev_inv = Quaternion.inverse_quaternion(previous_state_x)
             ei = Quaternion.multiply_quaternion(Y[i,:], prev_inv)
+            #print(ei)
             ei = Quaternion.normalize_quaternion(ei)
             eve = Quaternion.quattovec(ei)
             if np.linalg.norm(eve)==0:
                 evec[i,:] = np.zeros((3,))
             else:
                 evec[i,:] = (-np.pi + np.remainder(np.linalg.norm(eve)+np.pi,2*np.pi))/np.linalg.norm(eve)*eve
-                #evec[i,:] = eve/np.linalg.norm(eve)
+                #evec[i,:] = eve#/np.linalg.norm(eve)
         ei_avg = np.mean(evec, axis=0)
 
         previous_state_x = Quaternion.normalize_quaternion(Quaternion.multiply_quaternion(Quaternion.vectoquat(ei_avg), previous_state_x))

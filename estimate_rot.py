@@ -31,25 +31,17 @@ def rottoeuler(r):
 	yaw_z = np.arctan(r[1,0]/r[0,0])
 	return roll_x, pitch_y, yaw_z
 
-def rottoeuler2(r):
-	norm = np.sqrt(r[2,1]**2 + r[2,2]**2)
-        roll_x = np.arctan2(r[2,1],r[2,2])
-        pitch_y = np.arctan2(-r[2,0],norm)
-        yaw_z = np.arctan2(r[1,0],r[0,0])
-        return roll_x, pitch_y, yaw_z
-
-def estimate_rot(data_num=1):
+def estimate_rot(data_num=6):
 	#your code goes here
 	imu_raw = sio.loadmat('imu/imuRaw'+str(data_num)+'.mat')
 	imu_vals = imu_raw['vals']
 	imu_ts = imu_raw['ts'].T
-	imu = imu_vals#[:,:-100]
-	#vicon_raw = sio.loadmat('vicon/viconRot'+str(data_num)+'.mat')
-	#vicon_rot = vicon_raw['rots']
-	#vicon_ts = vicon_raw['ts'].T
-	#vicon = vicon_rot[:,:,16:]
-	#vicon = vicon[:,:,16:]
-	#imu = imu[:,:vicon.shape[2]]
+	imu = imu_vals#[:,36:]
+	vicon_raw = sio.loadmat('vicon/viconRot'+str(data_num)+'.mat')
+	vicon_rot = vicon_raw['rots']
+	vicon_ts = vicon_raw['ts'].T
+	vicon = vicon_rot
+	vicon = vicon#[:,:,:-65]
 	ax = -1*imu[0,:]
 	ay = -1*imu[1,:]
 	az = imu[2,:]
@@ -61,38 +53,39 @@ def estimate_rot(data_num=1):
 	scale_acc = 3300/1023/330.0
 	bias_acc = np.mean(acc[:50], axis = 0) - (np.array([0,0,1])/scale_acc)
 	if data_num == 3:
-		bias_acc = np.mean(acc[:1], axis = 0) - (np.array([0,0,1])/scale_acc)
+		bias_acc = acc[0] - (np.array([0,0,1])/scale_acc)
 	acc = (acc-bias_acc)*scale_acc
 	scale_omega = 3300/1023/3.33
-	bias_omega = np.mean(omega[:500], axis = 0)
-	if data_num==3:
-		bias_omega = np.mean(omega[:250], axis = 0)
-	omega = (omega-bias_omega)*scale_omega*(np.pi/180)
-	#vicon_rolls = np.zeros((vicon.shape[2],))
-	#vicon_pitches = np.zeros((vicon.shape[2],))
-	#vicon_yaws = np.zeros((vicon.shape[2],))
-	#for i in range(vicon.shape[2]):
-	#	vicon_rolls[i], vicon_pitches[i], vicon_yaws[i] = rottoeuler(vicon[:,:,i])
-	previous_state_x = np.array([1,0,0,0])
-	P = 2*np.eye(3,3)
-	Q = 8*np.eye(3,3)
-	R = 8*np.eye(3,3)
+	omega = np.array([wx, wy, wz]).T
+	#bias_omega = np.mean(omega[:bias], axis = 0)
 	if data_num == 3:
+		bias_omega = np.mean(omega[:250], axis = 0)
+	bias_omega = np.mean(omega[:300], axis = 0)
+	omega = (omega-bias_omega)*scale_omega*(np.pi/180)
+	vicon_rolls = np.zeros((vicon.shape[2],))
+	vicon_pitches = np.zeros((vicon.shape[2],))
+	vicon_yaws = np.zeros((vicon.shape[2],))
+	for i in range(vicon.shape[2]):
+		vicon_rolls[i], vicon_pitches[i], vicon_yaws[i] = rottoeuler(vicon[:,:,i])
+	previous_state_x = np.array([1,0,0,0])
+	P = np.eye(3,3)
+	Q = 8*np.eye(3,3)
+	if data_num==3:
 		Q = 50*np.eye(3,3)
-	
-        	Q[1,2] = 100
-		R = 250*np.eye(3,3)
+		Q[2,2] = 2
+		Q[1,2] = 100
+	R = 8*np.eye(3,3)
 	# print(bias_acc)
 	predictions = np.zeros((3,3,ax.shape[0]))
 	#start = timeit.default_timer()
-	for i in range(ax.shape[0]):
+	for i in range(ax.shape[0]-200):
 		omegai = omega[i]
 		W = ukf.sigma_points(P,Q)
 		X = ukf.WtoX(W, previous_state_x)
-		#if i==ax.shape[0]-1:
-		Y = ukf.XtoY(X,0.01, omegai)
-		#else:
-		#Y = ukf.XtoY(X,imu_ts[i+1]-imu_ts[i], omegai)
+		if i==ax.shape[0]-1:
+			Y = ukf.XtoY(X,0.01, omegai)
+		else:
+			Y = ukf.XtoY(X,imu_ts[i+1]-imu_ts[i], omegai)
 		# print(Y)
 		ymean, W = ukf.meanY(Y, previous_state_x)
 		#print(ymean)
@@ -105,46 +98,41 @@ def estimate_rot(data_num=1):
 		pvv = ukf.pvv(pzz, R)
 		pxz = ukf.pxz(W, Z, zmean)
 		kk = ukf.kalman_gain(pxz, pvv)
-
 		previous_state_x = ukf.update_state(pk,kk,v,ymean)
 		P = ukf.update_cov(pk, kk, pvv)
+		# if(data_num == 3 and i>3000):
+		# 	break
 		predictions[:,:,i] = Quaternion.quattorot(previous_state_x)
 	#stop = timeit.default_timer()
 	#print("Time: ",stop-start)
 	prediction_rolls = np.zeros((predictions.shape[2],))
 	prediction_pitches = np.zeros((predictions.shape[2],))
 	prediction_yaws = np.zeros((predictions.shape[2],))
-        if data_num <=4:
-		for i in range(predictions.shape[2]):
-			prediction_rolls[i], prediction_pitches[i], prediction_yaws[i] = rottoeuler(predictions[:,:,i])
-	else:
-        	for i in range(predictions.shape[2]):
-                        prediction_rolls[i], prediction_pitches[i], prediction_yaws[i] = rottoeuler2(predictions[:,:,i])
 
-	#print(prediction_rolls)
-	#print(prediction_pitches)
-	#print(prediction_yaws)
-	
-        if data_num == 3:
-                prediction_pitches[-650:] = 0
-		prediction_yaws[-650:] = 0	
-	return prediction_rolls, prediction_pitches, prediction_yaws
-	#roll_diff = (prediction_rolls-vicon_rolls)**2
-	#yaws_diff = (prediction_yaws - vicon_yaws)**2
-	#pitch_diff = (prediction_pitches - vicon_pitches)**2
-	#print(np.sqrt(yaws_diff.mean()))
-	#total = (roll_diff+yaws_diff+pitch_diff).mean()
-	#print(np.sqrt(total))
-#	plt.plot(prediction_rolls)
-#	plt.plot(vicon_rolls)
-#	plt.show()
-#	plt.plot(prediction_pitches)
-#	plt.plot(vicon_pitches)
-#	plt.show()
-#	plt.plot(prediction_yaws)
-#	plt.plot(vicon_yaws)
-#	plt.show()
+	for i in range(predictions.shape[2]):
+		prediction_rolls[i], prediction_pitches[i], prediction_yaws[i] = rottoeuler(predictions[:,:,i])
+	prediction_rolls = prediction_rolls.reshape((prediction_rolls.shape[0],))
+	prediction_pitches = prediction_pitches.reshape((prediction_pitches.shape[0],))
+	prediction_yaws = prediction_yaws.reshape((prediction_yaws.shape[0],))
 
-#if __name__ == "__main__":
 
-#	estimate_rot(data_num=5)
+	fig  = plt.figure()
+	plt.subplot(3,1,1)
+
+
+	plt.plot(imu_ts,prediction_rolls,'-r', label = 'Predicted')
+	plt.plot(vicon_ts,vicon_rolls,'-b', label = 'Vicon')
+	plt.legend(loc='best')
+	plt.subplot(3,1,2)
+	plt.plot(imu_ts,prediction_pitches,'-r', label = 'Predicted')
+	plt.plot(vicon_ts,vicon_pitches,'-b', label = 'Vicon')
+	plt.legend(loc='best')
+	plt.subplot(3,1,3)
+	plt.plot(imu_ts,prediction_yaws,'-r', label = 'Predicted')
+	plt.plot(vicon_ts,vicon_yaws,'-b', label = 'Vicon')
+	plt.legend(loc='best')
+	plt.show()
+
+if __name__ == "__main__":
+	for i in range(1,4):
+		estimate_rot(i)
