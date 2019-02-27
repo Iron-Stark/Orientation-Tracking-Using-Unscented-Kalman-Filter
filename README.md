@@ -43,6 +43,5 @@ Run python3 estimate_rot.py to visualize the results.
 
 
 ### References
-
-[]: https://ieeexplore.ieee.org/document/1257247
+[A quaternion-based unscented Kalman filter for orientation tracking](https://www.google.com)
 
